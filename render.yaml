@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: dex-volume-bot
+    runtime: node
+    plan: free                          # upgrade to "starter" for persistent disk
+    buildCommand: npm install --production
+    startCommand: node bot.js
+    healthCheckPath: /
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # ── Secrets: set these in the Render dashboard (Environment tab) ──
+      - key: BOT_TOKEN
+        sync: false                     # paste your Telegram bot token
+
+      - key: ADMIN_USERNAME
+        sync: false                     # your Telegram username without @
+
+      - key: BITQUERY_API_KEY
+        sync: false                     # your Bitquery API key
+
+      # ── Auto-set by Render – used for the keep-alive self-ping ──
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: dex-volume-bot
+          property: host
+
+      # ── Optional: point to a persistent disk for bot_data.json ──
+      # Uncomment the disk block below AND this env var when you upgrade to a paid plan
+      # - key: DATA_PATH
+      #   value: /data/bot_data.json
+
+    # ── Persistent disk (paid plans only – uncomment to enable) ──
+    # disk:
+    #   name: bot-data
+    #   mountPath: /data
+    #   sizeGB: 1

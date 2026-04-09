@@ -1,0 +1,52 @@
+{
+  "name": "dexscreener-volume-bot",
+  "version": "1.0.0",
+  "description": "Advanced Solana token ranking system with visual progress tracking for DexScreener",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "dev": "nodemon bot.js",
+    "test": "node --test",
+    "lint": "eslint .",
+    "clean": "rm -rf node_modules package-lock.json && npm install"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "solana",
+    "dexscreener",
+    "crypto",
+    "token",
+    "volume",
+    "ranking"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "dependencies": {
+    "telegraf": "^4.15.6",
+    "node-cron": "^3.0.3",
+    "axios": "^1.6.2",
+    "dotenv": "^16.3.1",
+    "winston": "^3.11.0",
+    "fs-extra": "^11.2.0",
+    "moment": "^2.29.4",
+    "lodash": "^4.17.21",
+    "@solana/web3.js": "^1.87.6",
+    "bs58": "^5.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "eslint": "^8.55.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/dexscreener-volume-bot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/dexscreener-volume-bot/issues"
+  },
+  "homepage": "https://github.com/yourusername/dexscreener-volume-bot#readme"
+}
