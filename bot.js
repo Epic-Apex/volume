@@ -3143,7 +3143,7 @@ ${chainWalletList}
             `• Bronze: 0.5 ETH → 25,000 vol\n` +
             `• Premium: 1 ETH → 50,000 vol\n` +
             `• VIP: 2 ETH → 100,000 vol\n\n` +
-            `💬 **Support:** Contact @${ADMIN_USERNAME}`,
+            `💬 **Support:** Use the 📞 Contact Support button in the main menu`,
             { parse_mode: 'Markdown' }
         );
     });
@@ -5007,7 +5007,7 @@ ${chainWalletList}
         ctx.editMessageText(
             `💡 **Suggest Referral Features**\n\n` +
             `We'd love to hear your ideas for the referral program!\n\n` +
-            `Contact @${ADMIN_USERNAME} with your suggestions.`,
+            `Use the 📞 Contact Support button in the main menu to send your suggestions.`,
             {
                 parse_mode: 'Markdown',
                 ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Back', 'referrals')]])
@@ -5038,7 +5038,7 @@ ${chainWalletList}
             `• Early access to new features\n` +
             `• Personal account manager\n\n` +
             `💰 **Pricing:** 10 SOL/month\n\n` +
-            `Contact @${ADMIN_USERNAME} to join the VIP waitlist!`,
+            `Use the 📞 Contact Support button in the main menu to join the VIP waitlist!`,
             {
                 parse_mode: 'Markdown',
                 ...Markup.inlineKeyboard([
@@ -5062,7 +5062,7 @@ ${chainWalletList}
             `💎 **All Services Bundle**\n` +
             `• Volume + DEX Update + Trending + Ads\n` +
             `• Save 35% on total cost\n\n` +
-            `📞 Contact @${ADMIN_USERNAME} to create your combo deal!`,
+            `📞 Use the Contact Support button to create your combo deal!`,
             {
                 parse_mode: 'Markdown',
                 ...Markup.inlineKeyboard([
@@ -5304,15 +5304,14 @@ ${chainWalletList}
     // Contact admin action
     bot.action('contact_admin', ctx => {
         ctx.editMessageText(
-            `📞 **Contact Administrator**\n\n` +
-            `👨‍💼 **Admin:** @${ADMIN_USERNAME}\n\n` +
+            `📞 **Contact Support**\n\n` +
             `📋 **What we can help with:**\n` +
             `• Custom volume packages\n` +
             `• Enterprise solutions\n` +
             `• Technical support\n` +
             `• Special requests\n` +
             `• Partnership opportunities\n\n` +
-            `💬 **Click the username above to message directly**\n\n` +
+            `💬 **Tap the button below to open a support ticket.**\n\n` +
             `⏰ **Response time:** Usually within 1-2 hours`,
             {
                 parse_mode: 'Markdown',
@@ -5475,7 +5474,7 @@ ${chainWalletList}
             `• Market condition adaptations\n` +
             `• Multi-exchange coordination\n\n` +
             `💰 **Pricing:** Starting from 5 SOL\n\n` +
-            `Contact @${ADMIN_USERNAME} to discuss your requirements!`,
+            `Use the 📞 Contact Support button to discuss your requirements!`,
             {
                 parse_mode: 'Markdown',
                 ...Markup.inlineKeyboard([
@@ -5568,7 +5567,7 @@ ${chainWalletList}
             `• Reduced volatility\n` +
             `• Enhanced trading experience\n` +
             `• Increased investor confidence\n\n` +
-            `📞 Contact @${ADMIN_USERNAME} for custom quotes!`,
+            `📞 Use the Contact Support button for custom quotes!`,
             {
                 parse_mode: 'Markdown',
                 ...Markup.inlineKeyboard([
@@ -5596,7 +5595,7 @@ ${chainWalletList}
             `• And 20+ more DEXs\n\n` +
             `💰 **Pricing:** 3-8 SOL per DEX\n` +
             `⏰ **Timeline:** 3-7 days average\n\n` +
-            `📞 Contact @${ADMIN_USERNAME} for listing strategy!`,
+            `📞 Use the Contact Support button for listing strategy!`,
             {
                 parse_mode: 'Markdown',
                 ...Markup.inlineKeyboard([
@@ -5623,7 +5622,7 @@ ${chainWalletList}
             `• Order 20 SOL volume → Save 8 SOL\n\n` +
             `💡 **How to Order:**\n` +
             `Use the custom package option and enter your desired amount. Discounts are applied automatically!\n\n` +
-            `📞 For orders over 50 SOL, contact @${ADMIN_USERNAME} for enterprise pricing.`,
+            `📞 For orders over 50 SOL, use the Contact Support button for enterprise pricing.`,
             {
                 parse_mode: 'Markdown',
                 ...Markup.inlineKeyboard([
@@ -5649,7 +5648,7 @@ ${chainWalletList}
             `💰 **Amount Range:** Min/Max transaction sizes\n` +
             `⏱️ **Timing:** Transaction intervals\n` +
             `🎯 **Strategy:** Distribution patterns\n\n` +
-            `📞 Contact @${ADMIN_USERNAME} to customize settings.`,
+            `📞 Use the Contact Support button to customize settings.`,
             {
                 parse_mode: 'Markdown',
                 ...Markup.inlineKeyboard([
@@ -5726,7 +5725,7 @@ ${chainWalletList}
             `• Daily/weekly summaries\n` +
             `• Emergency alerts only\n` +
             `• Complete silence mode\n\n` +
-            `📞 Contact @${ADMIN_USERNAME} to customize notification preferences.`,
+            `📞 Use the Contact Support button to customize notification preferences.`,
             {
                 parse_mode: 'Markdown',
                 ...Markup.inlineKeyboard([
@@ -5765,7 +5764,7 @@ ${chainWalletList}
         try {
             ctx.reply(
                 `⚠️ **Oops! Something went wrong.**\n\n` +
-                `Please try again or contact @${ADMIN_USERNAME} if the problem persists.`,
+                `Please try again or use the 📞 Contact Support button if the problem persists.`,
                 { parse_mode: 'Markdown' }
             );
         } catch (e) {
