@@ -2,7 +2,7 @@ services:
   - type: web
     name: dex-volume-bot
     runtime: node
-    plan: free                          # upgrade to "starter" for persistent disk
+    plan: starter                       # starter plan supports persistent disks
     buildCommand: npm install --production
     startCommand: node bot.js
     healthCheckPath: /
@@ -28,13 +28,12 @@ services:
           name: dex-volume-bot
           property: host
 
-      # ── Optional: point to a persistent disk for bot_data.json ──
-      # Uncomment the disk block below AND this env var when you upgrade to a paid plan
-      # - key: DATA_PATH
-      #   value: /data/bot_data.json
+      # ── Points bot_data.json to the persistent disk so data survives restarts ──
+      - key: DATA_PATH
+        value: /data/bot_data.json
 
-    # ── Persistent disk (paid plans only – uncomment to enable) ──
-    # disk:
-    #   name: bot-data
-    #   mountPath: /data
-    #   sizeGB: 1
+    # ── Persistent disk — survives restarts, deploys, and crashes ──
+    disk:
+      name: bot-data
+      mountPath: /data
+      sizeGB: 1

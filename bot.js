@@ -603,22 +603,72 @@ function startBot() {
         adminChatIds: []
     };
 
-    const DATA_FILE = process.env.DATA_PATH || 'bot_data.json';
+    // ── Persistent storage path ───────────────────────────────────────────────
+    // Always resolve to an absolute path so it's stable across cwd changes.
+    // On Render: set DATA_PATH=/data/bot_data.json and enable the disk in render.yaml
+    const DATA_FILE = path.resolve(process.env.DATA_PATH || path.join(__dirname, 'bot_data.json'));
+    const DATA_DIR  = path.dirname(DATA_FILE);
+    const BACKUP_FILES = [DATA_FILE + '.bak1', DATA_FILE + '.bak2', DATA_FILE + '.bak3'];
+
+    // Ensure the data directory exists (important when DATA_PATH points to a Render disk)
+    if (!fs.existsSync(DATA_DIR)) {
+        try { fs.mkdirSync(DATA_DIR, { recursive: true }); console.log(`📁 Created data directory: ${DATA_DIR}`); }
+        catch (e) { console.error('❌ Could not create data directory:', e.message); }
+    }
+
+    if (!process.env.DATA_PATH) {
+        console.warn('⚠️  DATA_PATH env var not set — using local bot_data.json (not safe on ephemeral filesystems like Render free tier)');
+        console.warn('⚠️  Set DATA_PATH=/data/bot_data.json and enable the disk in render.yaml to persist data across restarts');
+    } else {
+        console.log(`💾 Persistent data file: ${DATA_FILE}`);
+    }
+
     const userSessions = {};
 
-    // Load existing data
-    if (fs.existsSync(DATA_FILE)) {
-        try {
-            const raw = fs.readFileSync(DATA_FILE, 'utf8');
-            const parsed = JSON.parse(raw);
-            if (parsed && typeof parsed === 'object') {
-                botData = { ...botData, ...parsed };
-                console.log('📁 Loaded existing data');
-                console.log(`📊 Found ${botData.userWallets ? botData.userWallets.length : 0} existing user wallets`);
+    // ── Deep merge: preserves nested objects (users, orderHistory, etc.) ────────
+    function deepMerge(target, source) {
+        const out = Object.assign({}, target);
+        for (const key of Object.keys(source)) {
+            const sv = source[key], tv = target[key];
+            if (sv !== null && typeof sv === 'object' && !Array.isArray(sv) &&
+                tv !== null && typeof tv === 'object' && !Array.isArray(tv)) {
+                out[key] = deepMerge(tv, sv);
+            } else {
+                out[key] = sv;
             }
-        } catch (error) {
-            console.error('⚠️ Error loading data file:', error.message);
         }
+        return out;
+    }
+
+    // ── Load data with automatic fallback to backup files ───────────────────────
+    function loadBotData() {
+        const filesToTry = [DATA_FILE, ...BACKUP_FILES];
+        for (const file of filesToTry) {
+            if (!fs.existsSync(file)) continue;
+            try {
+                const raw = fs.readFileSync(file, 'utf8');
+                if (!raw || !raw.trim()) continue;
+                const parsed = JSON.parse(raw);
+                if (parsed && typeof parsed === 'object') {
+                    if (file !== DATA_FILE) {
+                        console.warn(`⚠️  Main data file unreadable — restored from backup: ${path.basename(file)}`);
+                    }
+                    return parsed;
+                }
+            } catch (e) {
+                console.error(`⚠️  Failed to read ${path.basename(file)}: ${e.message}`);
+            }
+        }
+        console.warn('⚠️  No valid data file found — starting with empty data');
+        return null;
+    }
+
+    // Load existing data
+    const _loaded = loadBotData();
+    if (_loaded) {
+        botData = deepMerge(botData, _loaded);
+        console.log('📁 Loaded existing data');
+        console.log(`📊 ${botData.userWallets?.length ?? 0} wallets | ${Object.keys(botData.users ?? {}).length} users`);
     }
 
     // Ensure arrays/objects exist
@@ -684,13 +734,54 @@ function startBot() {
     // Run backfill immediately on every startup
     backfillUsersFromAllSources();
 
-    // Save data function
+    // ── Atomic save with backup rotation & write queue ──────────────────────────
+    // All saves go through a promise queue so concurrent calls never interleave.
+    let _saveQueue   = Promise.resolve();
+    let _pendingSave = false;
+
     function saveData() {
+        // Coalesce multiple rapid calls into one actual write
+        if (_pendingSave) return;
+        _pendingSave = true;
+        _saveQueue = _saveQueue
+            .then(() => { _pendingSave = false; return _atomicSave(); })
+            .catch(err => { _pendingSave = false; console.error('❌ Save queue error:', err.message); });
+    }
+
+    async function _atomicSave() {
+        const tmpFile = DATA_FILE + '.tmp';
         try {
-            fs.writeFileSync(DATA_FILE, JSON.stringify(botData, null, 2));
-            console.log(`💾 Data saved - ${botData.userWallets.length} user wallets stored`);
-        } catch (error) {
-            console.error('❌ Error saving data:', error.message);
+            const serialised = JSON.stringify(botData, null, 2);
+
+            // 1. Write to a temp file first — crash here leaves old file untouched
+            fs.writeFileSync(tmpFile, serialised, 'utf8');
+
+            // 2. Rotate backups: bak2→bak3, bak1→bak2, current→bak1
+            try { if (fs.existsSync(BACKUP_FILES[1])) fs.copyFileSync(BACKUP_FILES[1], BACKUP_FILES[2]); } catch(_) {}
+            try { if (fs.existsSync(BACKUP_FILES[0])) fs.copyFileSync(BACKUP_FILES[0], BACKUP_FILES[1]); } catch(_) {}
+            try { if (fs.existsSync(DATA_FILE))       fs.copyFileSync(DATA_FILE,        BACKUP_FILES[0]); } catch(_) {}
+
+            // 3. Atomic rename — OS guarantees this is a single operation
+            fs.renameSync(tmpFile, DATA_FILE);
+
+            console.log(`💾 Saved — ${botData.userWallets?.length ?? 0} wallets | ${Object.keys(botData.users ?? {}).length} users`);
+        } catch (err) {
+            console.error('❌ Error saving data:', err.message);
+            try { if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile); } catch(_) {}
+        }
+    }
+
+    // Synchronous emergency save used in crash / exit handlers (no async)
+    function saveDataSync() {
+        const tmpFile = DATA_FILE + '.tmp';
+        try {
+            fs.writeFileSync(tmpFile, JSON.stringify(botData, null, 2), 'utf8');
+            try { if (fs.existsSync(BACKUP_FILES[0])) fs.copyFileSync(BACKUP_FILES[0], BACKUP_FILES[1]); } catch(_) {}
+            try { if (fs.existsSync(DATA_FILE))       fs.copyFileSync(DATA_FILE,        BACKUP_FILES[0]); } catch(_) {}
+            fs.renameSync(tmpFile, DATA_FILE);
+            console.log('💾 Emergency save complete');
+        } catch (e) {
+            console.error('❌ Emergency save failed:', e.message);
         }
     }
 
@@ -5649,12 +5740,21 @@ ${chainWalletList}
     // Prevent crashes from any unhandled promise rejection (e.g. bare ctx.editMessageText on photo messages)
     process.on('unhandledRejection', (reason) => {
         const msg = reason?.message || String(reason);
-        // Silently swallow Telegram 400/403 errors (can't edit photo messages, deleted messages, etc.)
+        // Silently swallow expected Telegram API errors
         if (msg.includes('400:') || msg.includes('403:') || msg.includes('ECONNRESET')) {
             console.warn('⚠️  Swallowed unhandled rejection:', msg);
         } else {
             console.error('❌ Unhandled rejection:', reason);
+            // Save data so nothing is lost before a potential crash
+            saveDataSync();
         }
+    });
+
+    // Save data on any uncaught exception before the process dies
+    process.on('uncaughtException', (err) => {
+        console.error('💥 Uncaught exception:', err.message, err.stack);
+        saveDataSync();
+        process.exit(1);
     });
 
     // Error handler
@@ -5693,6 +5793,10 @@ ${chainWalletList}
             console.log(`💰 Loaded ${botData.userWallets.length} wallets`);
             console.log(`📋 Platform stats: ${botData.stats.totalOrders} orders, ${botData.stats.totalVolume} volume`);
 
+            // Auto-save every 60 seconds as a safety net against crashes between user actions
+            setInterval(saveData, 60 * 1000);
+            console.log('🔁 Auto-save enabled (every 60s)');
+
             // Keep-alive: ping own URL every 14 min so Render free tier doesn't spin down
             const selfUrl = process.env.RENDER_EXTERNAL_URL;
             if (selfUrl) {
@@ -5712,16 +5816,17 @@ ${chainWalletList}
             process.exit(1);
         });
 
-    // Enable graceful stop
-    process.once('SIGINT', () => {
-        console.log('🛑 Received SIGINT, stopping bot gracefully...');
-        bot.stop('SIGINT');
-    });
-    
-    process.once('SIGTERM', () => {
-        console.log('🛑 Received SIGTERM, stopping bot gracefully...');
-        bot.stop('SIGTERM');
-    });
+    // ── Graceful shutdown — always persist data before the process exits ────────
+    function gracefulShutdown(signal) {
+        console.log(`🛑 Received ${signal} — saving data before exit...`);
+        saveDataSync();
+        bot.stop(signal);
+        // Give Telegraf 2s to cleanly stop, then force-exit
+        setTimeout(() => process.exit(0), 2000).unref();
+    }
+
+    process.once('SIGINT',  () => gracefulShutdown('SIGINT'));
+    process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
 }
 
 
