@@ -516,7 +516,7 @@ function startBot() {
         const dmUrl = `https://t.me/${botUsername}?start=from_group`;
         try {
             await ctx.reply(
-                `⚠️ *This bot only works in private messages.*\n\nClick the button below to open a DM and configure the bot there.`,
+                `Click the button below to open a DM and configure the bot there.`,
                 {
                     parse_mode: 'Markdown',
                     ...Markup.inlineKeyboard([
