@@ -506,6 +506,53 @@ function startBot() {
     console.log('🚀 Initializing bot...');
     const bot = new Telegraf(BOT_TOKEN);
 
+    // ===== GROUP CHAT GUARD =====
+    // Block ALL interactions in groups/supergroups and redirect users to DM.
+    const GROUP_TYPES = ['group', 'supergroup'];
+
+    // Helper: send the "Continue Here" redirect message to a group
+    async function sendGroupRedirect(ctx) {
+        const botUsername = ctx.botInfo?.username || '';
+        const dmUrl = `https://t.me/${botUsername}?start=from_group`;
+        try {
+            await ctx.reply(
+                `⚠️ *This bot only works in private messages.*\n\nClick the button below to open a DM and configure the bot there.`,
+                {
+                    parse_mode: 'Markdown',
+                    ...Markup.inlineKeyboard([
+                        Markup.button.url('💬 Continue Here', dmUrl)
+                    ])
+                }
+            );
+        } catch (_) { /* silently ignore if bot lacks send permission */ }
+    }
+
+    // Middleware: intercept every update that comes from a group/supergroup
+    bot.use(async (ctx, next) => {
+        const chatType = ctx.chat?.type;
+        if (GROUP_TYPES.includes(chatType)) {
+            // Only reply to actual messages/commands — not edited messages, etc.
+            if (ctx.message || ctx.callbackQuery) {
+                await sendGroupRedirect(ctx);
+                if (ctx.callbackQuery) {
+                    try { await ctx.answerCbQuery(); } catch (_) {}
+                }
+            }
+            return; // Stop processing — never call next()
+        }
+        return next();
+    });
+
+    // Handle bot being added to a group
+    bot.on('my_chat_member', async (ctx) => {
+        const newStatus = ctx.myChatMember?.new_chat_member?.status;
+        const chatType  = ctx.chat?.type;
+        // Fired when bot is added (status becomes 'member' or 'administrator')
+        if (GROUP_TYPES.includes(chatType) && (newStatus === 'member' || newStatus === 'administrator')) {
+            await sendGroupRedirect(ctx);
+        }
+    });
+
     // ── Auto-register every user on ANY interaction ──────────────────────────
     // This ensures botData.users is complete even if someone never sent /start
     bot.use((ctx, next) => {
@@ -2770,6 +2817,11 @@ ${chainWalletList}
 
     // ===== COMMAND HANDLERS =====
     bot.start(async ctx => {
+        // Second-layer group guard (middleware should already block this, but just in case)
+        if (GROUP_TYPES.includes(ctx.chat?.type)) {
+            return sendGroupRedirect(ctx);
+        }
+
         const cid = ctx.chat.id, un = ctx.from.username || 'Unknown';
 
         // Auto-register admin so notifications work without /setadminchat
