@@ -583,9 +583,36 @@ function startBot() {
         return next();
     });
 
+    // ── Translate all button labels inside a Telegraf Markup / reply_markup ──
+    // Works with both Telegraf Markup objects and plain { reply_markup } objects.
+    async function translateKeyboard(opts, lang) {
+        if (!opts || !lang || lang === 'en') return opts;
+        // Telegraf Markup objects expose the keyboard under .reply_markup
+        const rm = opts.reply_markup || (opts.reply_markup = undefined);
+        const keyboard = opts.reply_markup?.inline_keyboard
+            || opts.inline_keyboard
+            || null;
+        if (!keyboard) return opts;
+
+        // Deep-clone so we don't mutate the original cached Markup
+        const cloned = JSON.parse(JSON.stringify(opts));
+        const rows = cloned.reply_markup?.inline_keyboard || cloned.inline_keyboard;
+        if (!rows) return opts;
+
+        for (const row of rows) {
+            for (const btn of row) {
+                if (btn.text && typeof btn.text === 'string') {
+                    btn.text = await translateText(btn.text, lang);
+                }
+            }
+        }
+        return cloned;
+    }
+
     // ── Auto-translate middleware ─────────────────────────────────────────────
     // Wraps ctx.reply / ctx.replyWithPhoto / ctx.editMessageText so every bot
-    // response is automatically translated into the user's Telegram language.
+    // response is automatically translated into the user's Telegram language,
+    // including inline keyboard button labels.
     bot.use(async (ctx, next) => {
         if (!ctx.from || ctx.from.is_bot) return next();
 
@@ -600,15 +627,17 @@ function startBot() {
         const _reply = ctx.reply.bind(ctx);
         ctx.reply = async (text, opts) => {
             if (typeof text === 'string') text = await translateText(text, lang);
+            if (opts) opts = await translateKeyboard(opts, lang);
             return _reply(text, opts);
         };
 
-        // ── Wrap ctx.replyWithPhoto (translates caption) ──────────────────────
+        // ── Wrap ctx.replyWithPhoto (translates caption + buttons) ────────────
         const _replyWithPhoto = ctx.replyWithPhoto.bind(ctx);
         ctx.replyWithPhoto = async (photo, opts = {}) => {
             if (opts.caption && typeof opts.caption === 'string') {
                 opts = { ...opts, caption: await translateText(opts.caption, lang) };
             }
+            opts = await translateKeyboard(opts, lang);
             return _replyWithPhoto(photo, opts);
         };
 
@@ -617,7 +646,26 @@ function startBot() {
             const _editMsgText = ctx.editMessageText.bind(ctx);
             ctx.editMessageText = async (text, opts) => {
                 if (typeof text === 'string') text = await translateText(text, lang);
+                if (opts) opts = await translateKeyboard(opts, lang);
                 return _editMsgText(text, opts);
+            };
+        }
+
+        // ── Wrap ctx.editMessageReplyMarkup (keyboard-only edits) ─────────────
+        if (typeof ctx.editMessageReplyMarkup === 'function') {
+            const _editMsgRM = ctx.editMessageReplyMarkup.bind(ctx);
+            ctx.editMessageReplyMarkup = async (markup) => {
+                if (markup) markup = (await translateKeyboard({ reply_markup: markup }, lang)).reply_markup;
+                return _editMsgRM(markup);
+            };
+        }
+
+        // ── Wrap ctx.answerCbQuery (popup toast text) ─────────────────────────
+        if (typeof ctx.answerCbQuery === 'function') {
+            const _answerCb = ctx.answerCbQuery.bind(ctx);
+            ctx.answerCbQuery = async (text, opts) => {
+                if (typeof text === 'string') text = await translateText(text, lang);
+                return _answerCb(text, opts);
             };
         }
 
@@ -3483,10 +3531,15 @@ ${chainWalletList}
                 // Send one message with rate-limit awareness (max 25/s, retry on 429)
                 async function sendOne(chatId, text) {
                     const MAX_RETRIES = 3;
+                    // Translate broadcast message to each recipient's language
+                    const userLang = botData.users[String(chatId)]?.language || 'en';
+                    const header = await translateText('📣 *ANNOUNCEMENT*', userLang);
+                    const translatedText = await translateText(text, userLang);
+                    const fullMsg = `${header}\n\n${translatedText}`;
                     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
                         try {
                             await bot.telegram.sendMessage(chatId,
-                                `📣 *ANNOUNCEMENT*\n\n${text}`,
+                                fullMsg,
                                 { parse_mode: 'Markdown' }
                             );
                             return 'sent';
@@ -3541,8 +3594,12 @@ ${chainWalletList}
 
             if (adminSession.type === 'dm') {
                 try {
+                    // Translate DM to the target user's language
+                    const dmUserLang = botData.users[String(adminSession.targetChatId)]?.language || 'en';
+                    const dmHeader = await translateText('📣 *Reminder Alert!!!*', dmUserLang);
+                    const dmText   = await translateText(msgText, dmUserLang);
                     await bot.telegram.sendMessage(adminSession.targetChatId,
-                        `📣 *Reminder Alert!!!*\n\n${msgText}`,
+                        `${dmHeader}\n\n${dmText}`,
                         { parse_mode: 'Markdown' }
                     );
                     return ctx.reply(
