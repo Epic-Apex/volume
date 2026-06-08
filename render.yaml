@@ -2,10 +2,13 @@ services:
   - type: web
     name: dex-volume-bot
     runtime: node
-    plan: standard_paid                  # ✅ Upgraded to paid plan (no cold starts)
+    plan: standard_paid                  # ✅ Upgraded from 'starter' - eliminates cold starts
     buildCommand: npm install --production
     startCommand: node bot.js
-    healthCheckPath: /health            # ✅ Custom health check endpoint
+    healthCheckPath: /                   # Custom health check endpoint
+
+    memoryMB: 512                        # ✅ Increased from default 128 - allows better performance
+    maxDrawableDuration: 3600            # ✅ Increase timeout to 1 hour for long operations
 
     envVars:
       - key: NODE_ENV
@@ -17,9 +20,6 @@ services:
 
       - key: ADMIN_USERNAME
         sync: false                     # your Telegram username without @
-
-      - key: BITQUERY_API_KEY
-        sync: false                     # your Bitquery API key
 
       # ── Auto-set by Render – used for the keep-alive self-ping ──
       - key: RENDER_EXTERNAL_URL
@@ -37,7 +37,3 @@ services:
       name: bot-data
       mountPath: /data
       sizeGB: 1
-
-    # ── Performance optimizations ──
-    memoryMB: 512                       # ✅ Allocate more memory (default is 128)
-    maxDrawableDuration: 3600           # ✅ Increase timeout to 1 hour
