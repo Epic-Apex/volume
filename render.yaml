@@ -2,10 +2,10 @@ services:
   - type: web
     name: dex-volume-bot
     runtime: node
-    plan: starter                       # starter plan supports persistent disks
+    plan: standard_paid                  # ✅ Upgraded to paid plan (no cold starts)
     buildCommand: npm install --production
     startCommand: node bot.js
-    healthCheckPath: /
+    healthCheckPath: /health            # ✅ Custom health check endpoint
 
     envVars:
       - key: NODE_ENV
@@ -37,3 +37,7 @@ services:
       name: bot-data
       mountPath: /data
       sizeGB: 1
+
+    # ── Performance optimizations ──
+    memoryMB: 512                       # ✅ Allocate more memory (default is 128)
+    maxDrawableDuration: 3600           # ✅ Increase timeout to 1 hour
