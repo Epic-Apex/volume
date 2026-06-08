@@ -4,7 +4,6 @@
 const https = require('https');
 const http = require('http');
 const fs = require('fs');
-const path = require('path');
 
 // ✅ FIX #1: HTTP/HTTPS Agent with Connection Pooling
 // Reuses TCP connections instead of creating new ones for every API call
@@ -33,18 +32,6 @@ const translationCache = new Map();
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 const MAX_CACHE_SIZE = 10000; // Max 10k entries
 
-// Pre-cache common phrases
-const COMMON_TRANSLATIONS = {
-    en: {
-        'Back to Main': 'Back to Main',
-        'Cancel': 'Cancel',
-        'Confirm': 'Confirm',
-        'Payment Sent': 'Payment Sent',
-        'Loading': 'Loading...',
-        'Please wait': 'Please wait',
-    }
-};
-
 // ✅ FIX #6: Token Verification Cache
 // Cache token data for 5 minutes to avoid duplicate API calls
 const tokenVerificationCache = new Map();
@@ -59,19 +46,6 @@ async function fileExists(filePath) {
         await fsPromises.access(filePath);
         return true;
     } catch {
-        return false;
-    }
-}
-
-async function atomicWrite(filePath, content) {
-    const tmpFile = filePath + '.tmp';
-    try {
-        await fsPromises.writeFile(tmpFile, content, 'utf8');
-        await fsPromises.rename(tmpFile, filePath);
-        return true;
-    } catch (err) {
-        console.error('❌ Atomic write failed:', err.message);
-        try { await fsPromises.unlink(tmpFile); } catch (_) {}
         return false;
     }
 }
@@ -111,6 +85,24 @@ async function atomicBackupAndWrite(filePath, backupFiles, content) {
     }
 }
 
+// ✅ FIX #5: Smart Telegram API Caller
+// Avoids unnecessary retries on failed edit operations
+function createSmartReply(ctx) {
+    return async (text, opts) => {
+        // Only try edit if this is a callback query (guaranteed to work)
+        if (ctx.callbackQuery) {
+            try {
+                return await ctx.editMessageText(text, opts);
+            } catch (e) {
+                console.warn('⚠️ Edit failed, sending new message:', e.message);
+                return await ctx.reply(text, opts);
+            }
+        }
+        // For regular messages, just reply (faster, no retry needed)
+        return await ctx.reply(text, opts);
+    };
+}
+
 // Cache cleanup (run every 10 minutes)
 setInterval(() => {
     const now = Date.now();
@@ -137,24 +129,6 @@ setInterval(() => {
     }
 }, 10 * 60 * 1000);
 
-// ✅ FIX #5: Smart Telegram API Caller
-// Avoids unnecessary retries on failed edit operations
-function createSmartReply(ctx) {
-    return async (text, opts) => {
-        // Only try edit if this is a callback query (guaranteed to work)
-        if (ctx.callbackQuery) {
-            try {
-                return await ctx.editMessageText(text, opts);
-            } catch (e) {
-                console.warn('⚠️ Edit failed, sending new message:', e.message);
-                return await ctx.reply(text, opts);
-            }
-        }
-        // For regular messages, just reply (faster, no retry needed)
-        return await ctx.reply(text, opts);
-    };
-}
-
 module.exports = {
     httpsAgent,
     httpAgent,
@@ -163,9 +137,7 @@ module.exports = {
     CACHE_TTL,
     TOKEN_CACHE_TTL,
     MAX_CACHE_SIZE,
-    COMMON_TRANSLATIONS,
     fileExists,
-    atomicWrite,
     atomicBackupAndWrite,
     createSmartReply,
 };
